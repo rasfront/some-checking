@@ -19334,6 +19334,53 @@ const EnterAsHardBreak = Extension.create({
     ];
   }
 });
+const HASHTAG_RE = /(^|[\s(])#([\p{L}\p{N}_-]+)/gu;
+const Hashtag = Extension.create({
+  name: "hashtag",
+  addProseMirrorPlugins() {
+    const key = new PluginKey("hashtag");
+    return [
+      new Plugin({
+        key,
+        state: {
+          init: (_, { doc: doc2 }) => decorate(doc2),
+          apply: (tr2, old) => {
+            const mapped = old.map(tr2.mapping, tr2.doc);
+            if (!tr2.docChanged) return mapped;
+            return decorate(tr2.doc);
+          }
+        },
+        props: {
+          decorations(state) {
+            return this.getState(state);
+          }
+        }
+      })
+    ];
+  }
+});
+function decorate(doc2) {
+  const decorations = [];
+  doc2.descendants((node, pos) => {
+    if (!node.isText) return true;
+    if (node.marks?.some((m) => m.type.name === "code")) return true;
+    const text2 = node.text;
+    for (const match2 of text2.matchAll(HASHTAG_RE)) {
+      const lead = match2[1] ?? "";
+      const tag = match2[2];
+      const from2 = pos + match2.index + lead.length;
+      const to = from2 + 1 + tag.length;
+      decorations.push(
+        Decoration.inline(from2, to, {
+          class: "hashtag",
+          "data-hashtag": "true"
+        })
+      );
+    }
+    return true;
+  });
+  return DecorationSet.create(doc2, decorations);
+}
 const Italic = Mark2.create({
   name: "italic",
   parseHTML() {
@@ -19433,13 +19480,11 @@ const SpecialWordSuggestion = Extension.create({
         if (!found2) return false;
         const tr2 = state.tr;
         tr2.insertText(payload.content, found2.from, found2.to);
-        const to = found2.from + payload.content.length;
-        tr2.removeMark(found2.from, to, markType);
-        tr2.addMark(
-          found2.from,
-          to,
-          markType.create(payload.attrs ?? {})
-        );
+        if (payload.attrs) {
+          const to = found2.from + payload.content.length;
+          tr2.removeMark(found2.from, to, markType);
+          tr2.addMark(found2.from, to, markType.create(payload.attrs ?? {}));
+        }
         dispatch?.(tr2);
         setTimeout(() => {
           this.editor.chain().insertContent(" ").setMeta("addToHistory", false).run();
@@ -25763,7 +25808,8 @@ class TiptapAdapter {
           onChange: (count) => {
             this.emit("textCountChanged", count);
           }
-        })
+        }),
+        Hashtag
       ]
     });
     this.markdown = new MarkdownService();
@@ -25929,10 +25975,7 @@ class TiptapAdapter {
   applyHashtag(hashtag) {
     this.editor?.commands.applyDetectedSpecialWord({
       ruleId: "hashtag",
-      content: `#${hashtag}`,
-      attrs: {
-        href: `#${hashtag}`
-      }
+      content: `#${hashtag}`
     });
   }
   checkIsContentChanged() {
@@ -26189,7 +26232,6 @@ class EditorManager {
 }
 const adapter = new TiptapAdapter();
 const setkaEditor = new EditorManager(adapter);
-window.setkaEditor = setkaEditor;
 export {
   setkaEditor
 };
