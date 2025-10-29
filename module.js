@@ -19294,59 +19294,58 @@ const CharacterCount = Extension.create({
 });
 const isAndroid = /Android/i.test(navigator.userAgent);
 const isiOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+function getHardBreak(schema) {
+  return schema.nodes["hardBreak"] ?? schema.nodes["hard_break"] ?? null;
+}
 function stripTextNewlines(text2) {
   return (text2 ?? "").replace(/\n+/g, "");
 }
-function getHardBreak(schema) {
-  return schema.nodes.hardBreak || schema.nodes.hard_break || null;
-}
 function normalizeFragment(fragment, schema, mode) {
-  const hardBreak = getHardBreak(schema);
+  const hb = getHardBreak(schema);
   const out = [];
-  const pushHardBreak = () => {
-    if (!hardBreak) return;
-    if (!out.length) return;
-    if (out[out.length - 1].type === hardBreak) return;
-    out.push(hardBreak.create());
+  const pushHB = () => {
+    if (!hb || out.length === 0) return;
+    if (out[out.length - 1].type !== hb) out.push(hb.create());
   };
-  fragment.forEach((child) => {
-    if (child.isText) {
-      const t = stripTextNewlines(child.text);
-      if (t.length) out.push(schema.text(t, child.marks));
+  fragment.forEach((node) => {
+    if (node.isText) {
+      const clean = stripTextNewlines(node.text);
+      if (clean.length) out.push(schema.text(clean, node.marks));
       return;
     }
-    if (child.type.name === "hard_break" || child.type.name === "hardBreak" || child.type.name === "soft_break" || child.type.name === "softBreak") {
-      if (mode === "hardBreak") pushHardBreak();
+    if (node.type.name === "hardBreak" || node.type.name === "hard_break" || node.type.name === "softBreak" || node.type.name === "soft_break") {
+      if (mode === "hardBreak") pushHB();
       return;
     }
-    if (child.isBlock) {
-      const flat = normalizeFragment(child.content, schema, mode);
+    if (node.isBlock) {
+      const flat = normalizeFragment(node.content, schema, mode);
       if (flat.childCount) {
-        if (out.length && mode === "hardBreak") pushHardBreak();
+        if (out.length && mode === "hardBreak") pushHB();
         flat.forEach((n) => out.push(n));
       }
       return;
     }
-    if (child.content && child.content.childCount) {
-      const flat = normalizeFragment(child.content, schema, mode);
+    if (node.content.childCount) {
+      const flat = normalizeFragment(node.content, schema, mode);
       flat.forEach((n) => out.push(n));
       return;
     }
-    out.push(child);
+    out.push(node);
   });
-  if (hardBreak && out.length && out[out.length - 1].type === hardBreak) {
+  if (out.length && hb && out[out.length - 1].type === hb) {
     out.pop();
   }
   return Fragment.fromArray(out);
 }
-function sanitizeDoc(doc2, enforceStrip, pasteBehavior) {
-  const schema = doc2.type.schema;
-  const mode = "strip";
-  const flat = normalizeFragment(doc2.content, schema, mode);
-  return doc2.copy(flat);
+function sanitizeSlice(slice2, schema, mode) {
+  const content = normalizeFragment(slice2.content, schema, mode);
+  return new Slice(content, slice2.openStart, slice2.openEnd);
+}
+function isReplaceLikeStep(step) {
+  return step instanceof ReplaceStep || step instanceof ReplaceAroundStep;
 }
 const EnterAsHardBreak = Extension.create({
-  name: "enterAsHardBreakEverywhere",
+  name: "enterAsHardBreak",
   priority: 1e3,
   addOptions() {
     return {
@@ -19357,84 +19356,100 @@ const EnterAsHardBreak = Extension.create({
   addKeyboardShortcuts() {
     return {
       Enter: () => {
-        if (this.options.preventNewlines?.()) {
-          return true;
-        }
-        if (!isiOS) {
-          return this.editor.chain().focus().setHardBreak().run();
-        }
-        return true;
+        if (this.options.preventNewlines?.()) return true;
+        if (isiOS) return true;
+        return this.editor.chain().focus().setHardBreak().run();
       },
       "Shift-Enter": () => {
-        if (this.options.preventNewlines?.()) {
-          return true;
-        }
+        if (this.options.preventNewlines?.()) return true;
         return this.editor.chain().focus().setHardBreak().run();
       }
     };
   },
   addProseMirrorPlugins() {
     const editor = this.editor;
-    const opts = this.options;
-    const plugins = [];
-    if (isAndroid || isiOS) {
-      plugins.push(
-        new Plugin({
-          props: {
-            handleDOMEvents: {
-              beforeinput: (view, event) => {
-                const ev = event;
-                const type = ev?.inputType;
-                if (type === "insertParagraph" || type === "insertLineBreak") {
-                  if (view.composing) return false;
-                  if (opts.preventNewlines?.()) {
-                    ev.preventDefault();
-                    return true;
-                  }
-                  ev.preventDefault();
-                  editor.chain().focus().setHardBreak().run();
-                  return true;
-                }
-                return false;
+    let composing = false;
+    const platformPlugin = isAndroid || isiOS ? new Plugin({
+      props: {
+        handleDOMEvents: {
+          compositionstart: () => {
+            composing = true;
+            return false;
+          },
+          compositionend: () => {
+            composing = false;
+            return false;
+          },
+          beforeinput: (view, rawEvent) => {
+            const event = rawEvent;
+            const type = event.inputType;
+            if (type === "insertParagraph" || type === "insertLineBreak") {
+              if (view.composing) return false;
+              if (this.options.preventNewlines?.()) {
+                event.preventDefault();
+                return true;
               }
+              event.preventDefault();
+              editor.chain().focus().setHardBreak().run();
+              return true;
             }
+            return false;
           }
-        })
-      );
-    }
-    plugins.push(
-      new Plugin({
-        props: {
-          transformPasted: (slice2) => {
-            const schema = editor.state.schema;
-            const stripAll = opts.preventNewlines?.() === true;
-            const content = normalizeFragment(
-              slice2.content,
-              schema,
-              stripAll ? "strip" : opts.pasteBehavior ?? "hardBreak"
-            );
-            return new Slice(content, slice2.openStart, slice2.openEnd);
-          }
-        },
-        appendTransaction: (_trs, _old, state) => {
-          if (!opts.preventNewlines?.()) return null;
-          const cleaned = sanitizeDoc(
-            state.doc,
-            true,
-            opts.pasteBehavior ?? "hardBreak"
-          );
-          if (!cleaned.eq(state.doc)) {
-            return state.tr.replaceWith(
-              0,
-              state.doc.content.size,
-              cleaned.content
-            );
-          }
-          return null;
         }
-      })
-    );
-    return plugins;
+      }
+    }) : null;
+    const sanitizePlugin = new Plugin({
+      props: {
+        transformPasted: (slice2) => {
+          const schema = editor.state.schema;
+          const stripAll = this.options.preventNewlines?.() === true;
+          const mode = stripAll ? "strip" : this.options.pasteBehavior ?? "hardBreak";
+          return sanitizeSlice(slice2, schema, mode);
+        }
+      },
+      appendTransaction: (trs, _old, state) => {
+        if (trs.length === 0) return null;
+        const last = [...trs].reverse().find((t) => t.docChanged);
+        if (!last) return null;
+        const stripAll = this.options.preventNewlines?.() === true;
+        if (!stripAll) return null;
+        if (composing) return null;
+        const schema = state.schema;
+        let trFix = null;
+        last.steps.forEach((step, idx) => {
+          if (!isReplaceLikeStep(step)) return;
+          const rawSlice = step.slice;
+          const fixedSlice = sanitizeSlice(rawSlice, schema, "strip");
+          if (fixedSlice.eq(rawSlice)) return;
+          const map3 = last.mapping.maps.slice(0, idx + 1);
+          let posFrom = step.from;
+          let posTo = step.to;
+          for (let i = 0; i < map3.length; i += 1) {
+            const m = map3[i];
+            posFrom = m.map(posFrom, 1);
+            posTo = m.map(posTo, -1);
+          }
+          const safeFrom = Math.max(
+            0,
+            Math.min(posFrom, state.doc.content.size)
+          );
+          const safeTo = Math.max(0, Math.min(posTo, state.doc.content.size));
+          if (!trFix) trFix = state.tr;
+          trFix.replaceRange(safeFrom, safeTo, fixedSlice);
+        });
+        if (!trFix) return null;
+        const fixedTR = trFix;
+        const { selection } = state;
+        const headRes = fixedTR.mapping.mapResult(selection.head);
+        const anchorRes = fixedTR.mapping.mapResult(selection.anchor);
+        if (headRes.deleted && anchorRes.deleted) {
+          const pos = Math.min(headRes.pos, fixedTR.doc.content.size);
+          fixedTR.setSelection(Selection.near(fixedTR.doc.resolve(pos), 1));
+        }
+        return fixedTR;
+      }
+    });
+    return [...platformPlugin ? [platformPlugin] : [], sanitizePlugin];
   }
 });
 const HASHTAG_RE = /(^|[\s(])#([\p{L}\p{N}_-]+)/gu;
