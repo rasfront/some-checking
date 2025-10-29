@@ -19293,45 +19293,148 @@ const CharacterCount = Extension.create({
   }
 });
 const isAndroid = /Android/i.test(navigator.userAgent);
-const isiOS = /iPhone/i.test(navigator.userAgent);
+const isiOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+function stripTextNewlines(text2) {
+  return (text2 ?? "").replace(/\n+/g, "");
+}
+function getHardBreak(schema) {
+  return schema.nodes.hardBreak || schema.nodes.hard_break || null;
+}
+function normalizeFragment(fragment, schema, mode) {
+  const hardBreak = getHardBreak(schema);
+  const out = [];
+  const pushHardBreak = () => {
+    if (!hardBreak) return;
+    if (!out.length) return;
+    if (out[out.length - 1].type === hardBreak) return;
+    out.push(hardBreak.create());
+  };
+  fragment.forEach((child) => {
+    if (child.isText) {
+      const t = stripTextNewlines(child.text);
+      if (t.length) out.push(schema.text(t, child.marks));
+      return;
+    }
+    if (child.type.name === "hard_break" || child.type.name === "hardBreak" || child.type.name === "soft_break" || child.type.name === "softBreak") {
+      if (mode === "hardBreak") pushHardBreak();
+      return;
+    }
+    if (child.isBlock) {
+      const flat = normalizeFragment(child.content, schema, mode);
+      if (flat.childCount) {
+        if (out.length && mode === "hardBreak") pushHardBreak();
+        flat.forEach((n) => out.push(n));
+      }
+      return;
+    }
+    if (child.content && child.content.childCount) {
+      const flat = normalizeFragment(child.content, schema, mode);
+      flat.forEach((n) => out.push(n));
+      return;
+    }
+    out.push(child);
+  });
+  if (hardBreak && out.length && out[out.length - 1].type === hardBreak) {
+    out.pop();
+  }
+  return Fragment.fromArray(out);
+}
+function sanitizeDoc(doc2, enforceStrip, pasteBehavior) {
+  const schema = doc2.type.schema;
+  const mode = "strip";
+  const flat = normalizeFragment(doc2.content, schema, mode);
+  return doc2.copy(flat);
+}
 const EnterAsHardBreak = Extension.create({
   name: "enterAsHardBreakEverywhere",
-  // Make sure we win over Paragraph's splitBlock
   priority: 1e3,
-  // Desktop/iOS: handle Enter via keymap only
+  addOptions() {
+    return {
+      pasteBehavior: "hardBreak",
+      preventNewlines: () => false
+    };
+  },
   addKeyboardShortcuts() {
     return {
       Enter: () => {
-        if (isiOS) {
+        if (this.options.preventNewlines?.()) {
+          return true;
+        }
+        if (!isiOS) {
+          return this.editor.chain().focus().setHardBreak().run();
+        }
+        return true;
+      },
+      "Shift-Enter": () => {
+        if (this.options.preventNewlines?.()) {
           return true;
         }
         return this.editor.chain().focus().setHardBreak().run();
       }
     };
   },
-  // Android: intercept beforeinput (most IMEs don't send keydown)
   addProseMirrorPlugins() {
-    if (!isAndroid && !isiOS) return [];
     const editor = this.editor;
-    return [
-      new Plugin({
-        props: {
-          handleDOMEvents: {
-            beforeinput: (view, event) => {
-              const ev = event;
-              const type = ev?.inputType;
-              if (type === "insertParagraph" || type === "insertLineBreak") {
-                if (view.composing) return false;
-                ev.preventDefault();
-                editor.chain().focus().setHardBreak().run();
-                return true;
+    const opts = this.options;
+    const plugins = [];
+    if (isAndroid || isiOS) {
+      plugins.push(
+        new Plugin({
+          props: {
+            handleDOMEvents: {
+              beforeinput: (view, event) => {
+                const ev = event;
+                const type = ev?.inputType;
+                if (type === "insertParagraph" || type === "insertLineBreak") {
+                  if (view.composing) return false;
+                  if (opts.preventNewlines?.()) {
+                    ev.preventDefault();
+                    return true;
+                  }
+                  ev.preventDefault();
+                  editor.chain().focus().setHardBreak().run();
+                  return true;
+                }
+                return false;
               }
-              return false;
             }
           }
+        })
+      );
+    }
+    plugins.push(
+      new Plugin({
+        props: {
+          transformPasted: (slice2) => {
+            const schema = editor.state.schema;
+            const stripAll = opts.preventNewlines?.() === true;
+            const content = normalizeFragment(
+              slice2.content,
+              schema,
+              stripAll ? "strip" : opts.pasteBehavior ?? "hardBreak"
+            );
+            return new Slice(content, slice2.openStart, slice2.openEnd);
+          }
+        },
+        appendTransaction: (_trs, _old, state) => {
+          if (!opts.preventNewlines?.()) return null;
+          const cleaned = sanitizeDoc(
+            state.doc,
+            true,
+            opts.pasteBehavior ?? "hardBreak"
+          );
+          if (!cleaned.eq(state.doc)) {
+            return state.tr.replaceWith(
+              0,
+              state.doc.content.size,
+              cleaned.content
+            );
+          }
+          return null;
         }
       })
-    ];
+    );
+    return plugins;
   }
 });
 const HASHTAG_RE = /(^|[\s(])#([\p{L}\p{N}_-]+)/gu;
@@ -25766,6 +25869,7 @@ class TiptapAdapter {
   placeholder = "";
   limit = 0;
   initialContentState = null;
+  isNewLineDisabled = false;
   markdown = null;
   onEventListener = null;
   init(container) {
@@ -25776,7 +25880,9 @@ class TiptapAdapter {
         index_default$1,
         index_default,
         index_default$3,
-        EnterAsHardBreak,
+        EnterAsHardBreak.configure({
+          preventNewlines: () => this.isNewLineDisabled
+        }),
         Placeholder.configure({
           placeholder: () => this.placeholder
         }),
@@ -25850,6 +25956,9 @@ class TiptapAdapter {
   toggleStrike() {
     this.editor?.chain().focus().toggleStrike().run();
     this.handleEditorUpdate();
+  }
+  disableNewLines(disabled) {
+    this.isNewLineDisabled = disabled;
   }
   applyLink(href) {
     if (!this.editor) {
@@ -26230,6 +26339,9 @@ class EditorManager {
   }
   applyHashtag(hashtag) {
     this.adapter?.applyHashtag(hashtag);
+  }
+  disableNewLines(disabled) {
+    this.adapter.disableNewLines(disabled);
   }
 }
 const adapter = new TiptapAdapter();
