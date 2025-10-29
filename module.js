@@ -19486,9 +19486,11 @@ const SpecialWordSuggestion = Extension.create({
           tr2.addMark(found2.from, to, markType.create(payload.attrs ?? {}));
         }
         dispatch?.(tr2);
-        setTimeout(() => {
-          this.editor.chain().insertContent(" ").setMeta("addToHistory", false).run();
-        }, 0);
+        if (payload.content) {
+          setTimeout(() => {
+            this.editor.chain().insertContent(" ").setMeta("addToHistory", false).run();
+          }, 0);
+        }
         return true;
       }
     };
@@ -25975,7 +25977,7 @@ class TiptapAdapter {
   applyHashtag(hashtag) {
     this.editor?.commands.applyDetectedSpecialWord({
       ruleId: "hashtag",
-      content: `#${hashtag}`
+      content: hashtag
     });
   }
   checkIsContentChanged() {
