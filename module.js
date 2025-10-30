@@ -25937,6 +25937,7 @@ class TiptapAdapter {
     });
     this.markdown = new MarkdownService();
     this.wireEditorEvents(this.editor);
+    this.rememberInitialContentState();
   }
   deinit() {
     if (!this.editor) {
@@ -26019,7 +26020,10 @@ class TiptapAdapter {
       return;
     }
     this.editor.chain().setContent(this.markdown?.parse(content) ?? "").setMeta("addToHistory", false).run();
-    this.initialContentState = this.editor.view.state.doc;
+    this.rememberInitialContentState();
+  }
+  clearContent() {
+    this.editor?.commands.clearContent(true);
   }
   getContent() {
     if (!this.markdown) {
@@ -26103,6 +26107,12 @@ class TiptapAdapter {
       ruleId: "hashtag",
       content: hashtag
     });
+  }
+  rememberInitialContentState() {
+    if (!this.editor) {
+      return;
+    }
+    this.initialContentState = this.editor.view.state.doc;
   }
   checkIsContentChanged() {
     if (!this.editor || !this.initialContentState) {
@@ -26336,6 +26346,9 @@ class EditorManager {
   }
   getContent() {
     return this.adapter?.getContent() ?? "";
+  }
+  clearContent() {
+    this.adapter?.clearContent();
   }
   getSelection() {
     return this.adapter?.getSelection() ?? null;
