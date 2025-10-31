@@ -1,3 +1,4 @@
+!function(){"use strict";try{if("undefined"!=typeof document){var e=document.createElement("style");e.appendChild(document.createTextNode(".tiptap p.is-editor-empty:first-child:before{opacity:.6;content:attr(data-placeholder);pointer-events:none;position:absolute;overflow:visible}.tiptap p{margin:0;position:relative}.tiptap:focus-visible{outline:none;overflow:visible}")),document.head.appendChild(e)}}catch(t){console.error("vite-plugin-css-injected-by-js",t)}}();
 function OrderedMap(content) {
   this.content = content;
 }
