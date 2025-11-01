@@ -26171,6 +26171,29 @@ class TiptapAdapter {
     this.onEventListener?.(...args);
   }
 }
+class EditorErrorObserver {
+  onError;
+  errorHandler;
+  init(onError) {
+    this.onError = onError;
+    this.errorHandler = (event) => {
+      const fallbackStack = [
+        event.filename ?? "",
+        event.lineno ?? "",
+        event.colno ?? ""
+      ].filter((part) => part !== "").join(":");
+      const stack = event.error?.stack ?? fallbackStack;
+      this.onError?.(event.message, stack);
+    };
+    window.addEventListener("error", this.errorHandler);
+  }
+  deinit() {
+    this.onError = void 0;
+    if (this.errorHandler) {
+      window.removeEventListener("error", this.errorHandler);
+    }
+  }
+}
 const EditorArgsComparators = {
   textChanged: ([prev], [next2]) => {
     return prev === next2;
@@ -26212,6 +26235,9 @@ const EditorArgsComparators = {
     return prev === next2;
   },
   initialContentChanged: ([prev], [next2]) => {
+    return prev === next2;
+  },
+  error: ([prev], [next2]) => {
     return prev === next2;
   }
 };
@@ -26286,10 +26312,12 @@ class EditorManager {
   adapter;
   eventsObserver;
   resireObserver;
+  errorObserver;
   constructor(adapter2) {
     this.adapter = adapter2;
     this.eventsObserver = new EditorEventsObserver();
     this.resireObserver = new EditorResizeObserver();
+    this.errorObserver = new EditorErrorObserver();
   }
   init(container) {
     this.adapter?.onEvent(
@@ -26299,11 +26327,15 @@ class EditorManager {
     this.resireObserver?.init(container, (height) => {
       this.eventsObserver.emit("heightChanged", height);
     });
+    this.errorObserver.init((message, stack) => {
+      this.eventsObserver.emit("error", message, stack);
+    });
   }
   deinit() {
     this.adapter.deinit();
     this.eventsObserver.deinit();
     this.resireObserver.deinit();
+    this.errorObserver.deinit();
   }
   focus() {
     this.adapter.focus();
