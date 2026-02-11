@@ -20035,16 +20035,16 @@ class l6 {
     this.onEventListener = e;
   }
   toggleBold() {
-    this.editor?.chain().restoreStableSelection().focus().toggleBold().run(), this.handleEditorUpdate();
+    this.editor?.chain().focus().restoreStableSelection().toggleBold().run(), this.handleEditorUpdate();
   }
   toggleItalic() {
-    this.editor?.chain().restoreStableSelection().focus().toggleItalic().run(), this.handleEditorUpdate();
+    this.editor?.chain().focus().restoreStableSelection().toggleItalic().run(), this.handleEditorUpdate();
   }
   toggleUnderline() {
-    this.editor?.chain().restoreStableSelection().focus().toggleUnderline().run(), this.handleEditorUpdate();
+    this.editor?.chain().focus().restoreStableSelection().toggleUnderline().run(), this.handleEditorUpdate();
   }
   toggleStrike() {
-    this.editor?.chain().restoreStableSelection().focus().toggleStrike().run(), this.handleEditorUpdate();
+    this.editor?.chain().focus().restoreStableSelection().toggleStrike().run(), this.handleEditorUpdate();
   }
   disableNewLines(e) {
     this.isNewLineDisabled = e;
@@ -20055,7 +20055,7 @@ class l6 {
   applyLink(e) {
     if (!this.editor)
       return;
-    const n = u6(e), r = this.editor.chain().restoreStableSelection().focus(), { state: i } = this.editor, { from: o, empty: s } = i.selection, u = i.schema.marks.link, l = s && u ? bi(i.doc.resolve(o), u) : null;
+    const n = u6(e), r = this.editor.chain().focus().restoreStableSelection(), { state: i } = this.editor, { from: o, empty: s } = i.selection, u = i.schema.marks.link, l = s && u ? bi(i.doc.resolve(o), u) : null;
     if (!e || !n) {
       l ? r.setTextSelection(l).unsetLink().run() : r.unsetLink().run();
       return;
