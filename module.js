@@ -20035,16 +20035,16 @@ class l6 {
     this.onEventListener = e;
   }
   toggleBold() {
-    this.editor?.chain().focus().restoreStableSelection().toggleBold().run(), this.handleEditorUpdate();
+    this.editor?.chain().focus().toggleBold().run(), this.handleEditorUpdate();
   }
   toggleItalic() {
-    this.editor?.chain().focus().restoreStableSelection().toggleItalic().run(), this.handleEditorUpdate();
+    this.editor?.chain().focus().toggleItalic().run(), this.handleEditorUpdate();
   }
   toggleUnderline() {
-    this.editor?.chain().focus().restoreStableSelection().toggleUnderline().run(), this.handleEditorUpdate();
+    this.editor?.chain().focus().toggleUnderline().run(), this.handleEditorUpdate();
   }
   toggleStrike() {
-    this.editor?.chain().focus().restoreStableSelection().toggleStrike().run(), this.handleEditorUpdate();
+    this.editor?.chain().focus().toggleStrike().run(), this.handleEditorUpdate();
   }
   disableNewLines(e) {
     this.isNewLineDisabled = e;
@@ -20055,25 +20055,28 @@ class l6 {
   applyLink(e) {
     if (!this.editor)
       return;
-    const n = u6(e), r = this.editor.chain().focus().restoreStableSelection(), { state: i } = this.editor, { from: o, empty: s } = i.selection, u = i.schema.marks.link, l = s && u ? bi(i.doc.resolve(o), u) : null;
-    if (!e || !n) {
-      l ? r.setTextSelection(l).unsetLink().run() : r.unsetLink().run();
-      return;
-    }
-    if (l) {
-      r.insertContentAt(l, e).setTextSelection({
-        from: l.from,
-        to: l.from + e.length
-      }).setLink({ href: n }).setTextSelection(l.from + e.length).run();
-      return;
-    }
-    if (s) {
-      r.insertContent(e);
-      const a = this.editor.state.selection, c = a.head ?? a.from;
-      r.setTextSelection({ from: c, to: c + e.length }).setLink({ href: n }).setTextSelection(c + e.length).run();
-      return;
-    }
-    r.setLink({ href: n }).run();
+    const n = this.editor, r = u6(e);
+    this.editor?.commands.restoreStableSelection(), setTimeout(() => {
+      const i = n.chain().focus(), { state: o } = n, { from: s, empty: u } = o.selection, l = o.schema.marks.link, a = u && l ? bi(o.doc.resolve(s), l) : null;
+      if (!e || !r) {
+        a ? i.setTextSelection(a).unsetLink().run() : i.unsetLink().run();
+        return;
+      }
+      if (a) {
+        i.insertContentAt(a, e).setTextSelection({
+          from: a.from,
+          to: a.from + e.length
+        }).setLink({ href: r }).setTextSelection(a.from + e.length).run();
+        return;
+      }
+      if (u) {
+        i.insertContent(e);
+        const c = n.state.selection, f = c.head ?? c.from;
+        i.setTextSelection({ from: f, to: f + e.length }).setLink({ href: r }).setTextSelection(f + e.length).run();
+        return;
+      }
+      i.setLink({ href: r }).run();
+    });
   }
   setMaxLength(e) {
     this.limit = e;
