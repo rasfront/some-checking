@@ -20165,10 +20165,13 @@ class l6 {
     this.emit("initialContentChanged", n);
   }
   wireEditorEvents(e) {
-    e.on("update", this.handleEditorUpdate), e.on("selectionUpdate", this.handleSelectionUpdate), e.on("focus", this.handleFocus), e.on("blur", this.handleBlur);
+    const n = e.view.dom;
+    n.addEventListener("focus", this.handleFocus), n.addEventListener("blur", this.handleBlur), e.on("update", this.handleEditorUpdate), e.on("selectionUpdate", this.handleSelectionUpdate), e.on("focus", this.handleFocus), e.on("blur", this.handleBlur);
   }
   unwireEditorEvents(e) {
     e.off("update", this.handleEditorUpdate), e.off("selectionUpdate", this.handleSelectionUpdate), e.off("focus", this.handleFocus), e.off("blur", this.handleBlur);
+    const n = e.view.dom;
+    n.removeEventListener("focus", this.handleFocus), n.removeEventListener("blur", this.handleBlur);
   }
   handleEditorUpdate = () => {
     const e = this.editor?.state.doc;
