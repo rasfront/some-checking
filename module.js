@@ -15810,6 +15810,8 @@ const Py = rn.create({
   }
 }), By = H.create({
   name: "selectionPreserve",
+  priority: 1e3,
+  // High priority to override focus command
   addStorage() {
     return {
       temporarySelection: null,
@@ -15818,6 +15820,7 @@ const Py = rn.create({
     };
   },
   addCommands() {
+    const t4 = this.parent?.();
     return {
       saveStableSelection: () => () => (this.storage.stableSelection = this.storage.temporarySelection, console.log(
         "[SelectionPreserve] saveStableSelection: stableSelection fixed immediately",
@@ -15825,37 +15828,46 @@ const Py = rn.create({
       ), this.storage.stabilizationTimer !== null && (clearTimeout(this.storage.stabilizationTimer), this.storage.stabilizationTimer = null, console.log(
         "[SelectionPreserve] saveStableSelection: stabilization timer cleared"
       )), true),
-      restoreStableSelection: () => ({ state: t4, dispatch: e }) => {
-        const n = this.storage.stableSelection;
+      restoreStableSelection: () => ({ state: e, dispatch: n }) => {
+        const r = this.storage.stableSelection;
         if (console.log("[SelectionPreserve] restoreStableSelection: checking", {
           current: {
-            from: t4.selection.from,
-            to: t4.selection.to
+            from: e.selection.from,
+            to: e.selection.to
           },
-          stable: n
-        }), !n)
+          stable: r
+        }), !r)
           return console.log(
             "[SelectionPreserve] restoreStableSelection: no stableSelection, skipping"
           ), false;
-        const { from: r, to: i } = t4.selection;
-        if (r !== n.from || i !== n.to) {
+        const { from: i, to: o } = e.selection;
+        if (i !== r.from || o !== r.to) {
           console.log(
             "[SelectionPreserve] restoreStableSelection: restoring",
-            n
+            r
           );
-          const s = t4.tr.setSelection(
+          const u = e.tr.setSelection(
             O.create(
-              t4.doc,
-              n.from,
-              n.to
+              e.doc,
+              r.from,
+              r.to
             )
           );
-          return e && e(s), true;
+          return n && n(u), true;
         } else
           console.log(
             "[SelectionPreserve] restoreStableSelection: selection matches, no restore needed"
           );
         return false;
+      },
+      focus: (e, n) => (r) => {
+        console.log(
+          "[SelectionPreserve] focus command intercepted, will restore after focus"
+        );
+        const i = t4?.focus?.(e, n)?.(
+          r
+        );
+        return this.editor.commands.restoreStableSelection(), i ?? true;
       }
     };
   },
