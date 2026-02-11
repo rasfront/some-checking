@@ -15820,7 +15820,6 @@ const Py = rn.create({
     };
   },
   addCommands() {
-    const t4 = this.parent?.();
     return {
       saveStableSelection: () => () => (this.storage.stableSelection = this.storage.temporarySelection, console.log(
         "[SelectionPreserve] saveStableSelection: stableSelection fixed immediately",
@@ -15828,46 +15827,37 @@ const Py = rn.create({
       ), this.storage.stabilizationTimer !== null && (clearTimeout(this.storage.stabilizationTimer), this.storage.stabilizationTimer = null, console.log(
         "[SelectionPreserve] saveStableSelection: stabilization timer cleared"
       )), true),
-      restoreStableSelection: () => ({ state: e, dispatch: n }) => {
-        const r = this.storage.stableSelection;
+      restoreStableSelection: () => ({ state: t4, dispatch: e }) => {
+        const n = this.storage.stableSelection;
         if (console.log("[SelectionPreserve] restoreStableSelection: checking", {
           current: {
-            from: e.selection.from,
-            to: e.selection.to
+            from: t4.selection.from,
+            to: t4.selection.to
           },
-          stable: r
-        }), !r)
+          stable: n
+        }), !n)
           return console.log(
             "[SelectionPreserve] restoreStableSelection: no stableSelection, skipping"
           ), false;
-        const { from: i, to: o } = e.selection;
-        if (i !== r.from || o !== r.to) {
+        const { from: r, to: i } = t4.selection;
+        if (r !== n.from || i !== n.to) {
           console.log(
             "[SelectionPreserve] restoreStableSelection: restoring",
-            r
+            n
           );
-          const u = e.tr.setSelection(
+          const s = t4.tr.setSelection(
             O.create(
-              e.doc,
-              r.from,
-              r.to
+              t4.doc,
+              n.from,
+              n.to
             )
           );
-          return n && n(u), true;
+          return e && e(s), true;
         } else
           console.log(
             "[SelectionPreserve] restoreStableSelection: selection matches, no restore needed"
           );
         return false;
-      },
-      focus: (e, n) => (r) => {
-        console.log(
-          "[SelectionPreserve] focus command intercepted, will restore after focus"
-        );
-        const i = t4?.focus?.(e, n)?.(
-          r
-        );
-        return this.editor.commands.restoreStableSelection(), i ?? true;
       }
     };
   },
@@ -20045,16 +20035,16 @@ class l6 {
     this.onEventListener = e;
   }
   toggleBold() {
-    this.editor?.chain().focus().toggleBold().run(), this.handleEditorUpdate();
+    this.editor?.chain().restoreStableSelection().focus().toggleBold().run(), this.handleEditorUpdate();
   }
   toggleItalic() {
-    this.editor?.chain().focus().toggleItalic().run(), this.handleEditorUpdate();
+    this.editor?.chain().restoreStableSelection().focus().toggleItalic().run(), this.handleEditorUpdate();
   }
   toggleUnderline() {
-    this.editor?.chain().focus().toggleUnderline().run(), this.handleEditorUpdate();
+    this.editor?.chain().restoreStableSelection().focus().toggleUnderline().run(), this.handleEditorUpdate();
   }
   toggleStrike() {
-    this.editor?.chain().focus().toggleStrike().run(), this.handleEditorUpdate();
+    this.editor?.chain().restoreStableSelection().focus().toggleStrike().run(), this.handleEditorUpdate();
   }
   disableNewLines(e) {
     this.isNewLineDisabled = e;
@@ -20065,7 +20055,7 @@ class l6 {
   applyLink(e) {
     if (!this.editor)
       return;
-    const n = u6(e), r = this.editor.chain().focus(), { state: i } = this.editor, { from: o, empty: s } = i.selection, u = i.schema.marks.link, l = s && u ? bi(i.doc.resolve(o), u) : null;
+    const n = u6(e), r = this.editor.chain().restoreStableSelection().focus(), { state: i } = this.editor, { from: o, empty: s } = i.selection, u = i.schema.marks.link, l = s && u ? bi(i.doc.resolve(o), u) : null;
     if (!e || !n) {
       l ? r.setTextSelection(l).unsetLink().run() : r.unsetLink().run();
       return;
